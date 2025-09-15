@@ -1,0 +1,175 @@
+# =============================================================================
+# PRODUCTION-READY LDAP BOOTSTRAP FILE
+# This file includes memberOf attributes to support standard Airflow role mapping
+# =============================================================================
+
+# Admin user for LDAP administration
+dn: cn=admin,dc=example,dc=org
+changetype: add
+objectClass: simpleSecurityObject
+objectClass: organizationalRole
+cn: admin
+userPassword: adminpassword
+description: LDAP Administrator
+
+# =============================================================================
+# ORGANIZATIONAL UNITS
+# =============================================================================
+
+# IT Department organizational unit
+dn: ou=IT,dc=example,dc=org
+changetype: add
+objectClass: organizationalUnit
+ou: IT
+description: Information Technology Department
+
+# Marketing Department organizational unit
+dn: ou=Marketing,dc=example,dc=org
+changetype: add
+objectClass: organizationalUnit
+ou: Marketing
+description: Marketing Department
+
+# Groups organizational unit
+dn: ou=groups,dc=example,dc=org
+changetype: add
+objectClass: organizationalUnit
+ou: groups
+description: LDAP Groups Container
+
+# =============================================================================
+# AIRFLOW GROUPS
+# =============================================================================
+
+# Airflow Administrators Group
+dn: cn=airflow-admins,ou=groups,dc=example,dc=org
+changetype: add
+objectClass: groupOfNames
+cn: airflow-admins
+description: Airflow Administrator Group - Full system access
+member: uid=johndoe,ou=IT,dc=example,dc=org
+member: uid=anna.meier,ou=IT,dc=example,dc=org
+
+# Airflow Viewers Group
+dn: cn=airflow-viewers,ou=groups,dc=example,dc=org
+changetype: add
+objectClass: groupOfNames
+cn: airflow-viewers
+description: Airflow Viewer Group - Read-only access
+member: uid=peter.schmidt,ou=Marketing,dc=example,dc=org
+
+# Airflow Users Group (optional - for intermediate permissions)
+dn: cn=airflow-users,ou=groups,dc=example,dc=org
+changetype: add
+objectClass: groupOfNames
+cn: airflow-users
+description: Airflow User Group - Can create and edit DAGs
+member: cn=placeholder,ou=groups,dc=example,dc=org
+
+# =============================================================================
+# IT DEPARTMENT USERS
+# =============================================================================
+
+# John Doe - IT Department Administrator
+dn: uid=johndoe,ou=IT,dc=example,dc=org
+changetype: add
+objectClass: inetOrgPerson
+cn: John Doe
+sn: Doe
+givenName: John
+uid: johndoe
+mail: johndoe@example.org
+userPassword: password123
+employeeNumber: IT001
+departmentNumber: IT
+title: Senior DevOps Engineer
+description: IT Department - Senior DevOps Engineer
+memberOf: cn=airflow-admins,ou=groups,dc=example,dc=org
+
+# Anna Meier - IT Department Administrator  
+dn: uid=anna.meier,ou=IT,dc=example,dc=org
+changetype: add
+objectClass: inetOrgPerson
+cn: Anna Meier
+sn: Meier
+givenName: Anna
+uid: anna.meier
+mail: anna.meier@example.org
+userPassword: password456
+employeeNumber: IT002
+departmentNumber: IT
+title: Platform Engineer
+description: IT Department - Platform Engineer
+memberOf: cn=airflow-admins,ou=groups,dc=example,dc=org
+
+# =============================================================================
+# MARKETING DEPARTMENT USERS
+# =============================================================================
+
+# Peter Schmidt - Marketing Department Viewer
+dn: uid=peter.schmidt,ou=Marketing,dc=example,dc=org
+changetype: add
+objectClass: inetOrgPerson
+cn: Peter Schmidt
+sn: Schmidt
+givenName: Peter
+uid: peter.schmidt
+mail: peter.schmidt@example.org
+userPassword: password789
+employeeNumber: MKT001
+departmentNumber: Marketing
+title: Data Analyst
+description: Marketing Department - Data Analyst
+memberOf: cn=airflow-viewers,ou=groups,dc=example,dc=org
+
+# =============================================================================
+# ADDITIONAL SAMPLE USERS (UNCOMMENT AS NEEDED)
+# =============================================================================
+
+# # Sarah Wilson - IT User (intermediate permissions)
+# dn: uid=sarah.wilson,ou=IT,dc=example,dc=org
+# changetype: add
+# objectClass: inetOrgPerson
+# cn: Sarah Wilson
+# sn: Wilson
+# givenName: Sarah
+# uid: sarah.wilson
+# mail: sarah.wilson@example.org
+# userPassword: password321
+# employeeNumber: IT003
+# departmentNumber: IT
+# title: Data Engineer
+# description: IT Department - Data Engineer
+# memberOf: cn=airflow-users,ou=groups,dc=example,dc=org
+
+# # Mike Johnson - Marketing Viewer
+# dn: uid=mike.johnson,ou=Marketing,dc=example,dc=org
+# changetype: add
+# objectClass: inetOrgPerson
+# cn: Mike Johnson
+# sn: Johnson
+# givenName: Mike
+# uid: mike.johnson
+# mail: mike.johnson@example.org
+# userPassword: password654
+# employeeNumber: MKT002
+# departmentNumber: Marketing
+# title: Marketing Manager
+# description: Marketing Department - Marketing Manager
+# memberOf: cn=airflow-viewers,ou=groups,dc=example,dc=org
+
+# =============================================================================
+# NOTES FOR PRODUCTION USE
+# =============================================================================
+#
+# 1. SECURITY: Change all default passwords before production deployment
+# 2. GROUPS: Modify group memberships based on your organizational structure
+# 3. ATTRIBUTES: Add additional user attributes as needed for your environment
+# 4. SCALING: Use LDAP management tools for large user bases
+#
+# Group Permissions Mapping:
+# - airflow-admins: Full Airflow access (Admin role)
+# - airflow-users:  Can create/edit DAGs (User role) 
+# - airflow-viewers: Read-only access (Viewer role)
+#
+# =============================================================================

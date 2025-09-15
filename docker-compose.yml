@@ -1,0 +1,139 @@
+x-airflow-common:
+  &airflow-common
+  image: apache/airflow:2.10.3
+  environment: &airflow-common-env
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+    AIRFLOW__CORE__FERNET_KEY: ''
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+    AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+    AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session'
+    AIRFLOW__WEBSERVER__EXPOSE_CONFIG: 'true'
+    AIRFLOW__WEBSERVER__RBAC: 'true'
+    _PIP_ADDITIONAL_REQUIREMENTS: apache-airflow[ldap]
+  volumes:
+    - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
+    - ${AIRFLOW_PROJ_DIR:-.}/logs:/opt/airflow/logs
+    - ${AIRFLOW_PROJ_DIR:-.}/config:/opt/airflow/config
+    - ${AIRFLOW_PROJ_DIR:-.}/plugins:/opt/airflow/plugins
+    - ${AIRFLOW_PROJ_DIR:-.}/webserver_config.py:/opt/airflow/webserver_config.py
+  user: "${AIRFLOW_UID:-50000}:0"
+  depends_on: &airflow-common-depends-on
+    postgres:
+      condition: service_healthy
+
+networks:
+  ldap_network:
+    driver: bridge
+
+services:
+  # LDAP Services (your existing configuration)
+  openldap:
+    image: osixia/openldap:latest
+    container_name: openldap
+    environment:
+      LDAP_BASE_DN: "dc=example,dc=org"
+      LDAP_ORGANISATION: "Example Organization"
+      LDAP_DOMAIN: "example.org"
+      LDAP_ADMIN_PASSWORD: "admin"
+      LDAP_TLS: "false"
+    volumes:
+      - ./ldap/bootstrap.ldif:/container/service/slapd/assets/config/bootstrap/ldif/custom/50-bootstrap.ldif
+    networks:
+      - ldap_network
+    ports:
+      - "389:389"
+    command: --copy-service
+    restart: unless-stopped
+
+  phpldapadmin:
+    image: osixia/phpldapadmin:latest
+    container_name: phpldapadmin
+    environment:
+      PHPLDAPADMIN_LDAP_HOSTS: openldap
+      PHPLDAPADMIN_HTTPS: "false"
+    networks:
+      - ldap_network
+    ports:
+      - "8081:80"
+    restart: unless-stopped
+    depends_on:
+      - openldap
+
+  # Airflow Services
+  postgres:
+    image: postgres:13
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - postgres-db-volume:/var/lib/postgresql/data
+    networks:
+      - ldap_network
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 10s
+      retries: 5
+      start_period: 5s
+    restart: always
+
+  airflow-webserver:
+    <<: *airflow-common
+    command: webserver
+    ports:
+      - "8080:8080"
+    networks:
+      - ldap_network
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: always
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+      openldap:
+        condition: service_started
+
+  airflow-scheduler:
+    <<: *airflow-common
+    command: scheduler
+    networks:
+      - ldap_network
+    healthcheck:
+      test: ["CMD", "airflow", "jobs", "check", "--job-type", "SchedulerJob", "--hostname", "$${HOSTNAME}"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: always
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+
+  airflow-init:
+    <<: *airflow-common
+    entrypoint: /bin/bash
+    networks:
+      - ldap_network
+    command:
+      - -c
+      - |
+        echo "Initializing Airflow database..."
+        airflow db init
+        airflow users create \
+          --username admin \
+          --firstname Airflow \
+          --lastname Admin \
+          --role Admin \
+          --email admin@example.org \
+          --password admin
+        echo "Airflow initialization completed"
+
+volumes:
+  postgres-db-volume:
